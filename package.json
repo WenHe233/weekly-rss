@@ -1,0 +1,15 @@
+{
+  "name": "weekly-rss",
+  "version": "1.0.0",
+  "description": "Generate a full RSS archive for ruanyf/weekly and deploy it to Cloudflare Pages.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/generate-rss.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

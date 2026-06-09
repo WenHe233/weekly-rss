@@ -1,0 +1,55 @@
+name: Build and deploy RSS
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 12 * * *"
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: cloudflare-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test generator
+        run: npm test
+
+      - name: Sparse checkout ruanyf/weekly
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/ruanyf/weekly.git .upstream/weekly
+          cd .upstream/weekly
+          git sparse-checkout init --no-cone
+          git sparse-checkout set "/README.md" "/docs/issue-*.md"
+          git checkout master
+
+      - name: Build full RSS archive
+        env:
+          FEED_URL: ${{ vars.FEED_URL || 'https://weekly-rss.pages.dev/rss.xml' }}
+        run: npm run build -- --source-dir .upstream/weekly --output-dir public --feed-url "$FEED_URL"
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy public --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'weekly-rss' }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
