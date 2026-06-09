@@ -10,6 +10,9 @@ const DEFAULT_FEED_URL = "https://weekly-rss.pages.dev/rss.xml";
 const UPSTREAM_REPO_URL = "https://github.com/ruanyf/weekly";
 const UPSTREAM_BLOB_BASE = "https://github.com/ruanyf/weekly/blob/master";
 const UPSTREAM_RAW_BASE = "https://raw.githubusercontent.com/ruanyf/weekly/master";
+const INLINE_TOKEN_START = "\uE000";
+const INLINE_TOKEN_END = "\uE001";
+const INLINE_TOKEN_RE = /\uE000(\d+)\uE001/g;
 
 export function parseReadmeIndex(readme) {
   const entries = [];
@@ -241,7 +244,7 @@ export function renderInline(text, context) {
   const tokens = [];
   const save = (value) => {
     tokens.push(value);
-    return `\u0000${tokens.length - 1}\u0000`;
+    return `${INLINE_TOKEN_START}${tokens.length - 1}${INLINE_TOKEN_END}`;
   };
 
   let value = text;
@@ -259,7 +262,7 @@ export function renderInline(text, context) {
   value = value.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   value = value.replace(/\*([^*]+)\*/g, "<em>$1</em>");
 
-  return value.replace(/\u0000(\d+)\u0000/g, (_, tokenIndex) => tokens[Number(tokenIndex)]);
+  return restoreInlineTokens(value, tokens);
 }
 
 export function absolutizeUrl(url, context, kind) {
@@ -413,7 +416,7 @@ function stripMarkdownEscapes(value) {
 }
 
 function escapeHtml(value) {
-  return String(value)
+  return stripInvalidXmlChars(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
@@ -428,5 +431,43 @@ function xmlEscape(value) {
 }
 
 function cdata(value) {
-  return `<![CDATA[${String(value).replaceAll("]]>", "]]]]><![CDATA[>")}]]>`;
+  return `<![CDATA[${stripInvalidXmlChars(value).replaceAll("]]>", "]]]]><![CDATA[>")}]]>`;
+}
+
+function restoreInlineTokens(value, tokens) {
+  let current = value;
+
+  for (let pass = 0; pass <= tokens.length; pass += 1) {
+    const next = current.replace(INLINE_TOKEN_RE, (_, tokenIndex) => tokens[Number(tokenIndex)] ?? "");
+    if (next === current) {
+      return next;
+    }
+    current = next;
+  }
+
+  return current.replace(INLINE_TOKEN_RE, "");
+}
+
+export function stripInvalidXmlChars(value) {
+  let result = "";
+
+  for (const character of String(value)) {
+    const codePoint = character.codePointAt(0);
+    if (isValidXmlCodePoint(codePoint)) {
+      result += character;
+    }
+  }
+
+  return result;
+}
+
+function isValidXmlCodePoint(codePoint) {
+  return (
+    codePoint === 0x9 ||
+    codePoint === 0xa ||
+    codePoint === 0xd ||
+    (codePoint >= 0x20 && codePoint <= 0xd7ff) ||
+    (codePoint >= 0xe000 && codePoint <= 0xfffd) ||
+    (codePoint >= 0x10000 && codePoint <= 0x10ffff)
+  );
 }

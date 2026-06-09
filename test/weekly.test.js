@@ -5,9 +5,11 @@ import path from "node:path";
 import test from "node:test";
 import {
   absolutizeUrl,
+  buildRss,
   generateSite,
   parseReadmeIndex,
-  renderMarkdown
+  renderMarkdown,
+  stripInvalidXmlChars
 } from "../src/weekly.js";
 
 test("parseReadmeIndex reads all issues and sorts them descending", () => {
@@ -59,6 +61,16 @@ test("renderMarkdown rewrites relative links and images", () => {
   assert.match(html, /<code>code<\/code>/);
 });
 
+test("renderMarkdown restores nested image link placeholders", () => {
+  const html = renderMarkdown(
+    "[![](../images/banner.png)](https://example.com/signup)",
+    { issuePath: "docs/issue-331.md" }
+  );
+
+  assert.match(html, /<a href="https:\/\/example\.com\/signup"><img src="https:\/\/raw\.githubusercontent\.com\/ruanyf\/weekly\/master\/images\/banner\.png" alt=""><\/a>/);
+  assert.doesNotMatch(html, /[\u0000\uE000\uE001]/);
+});
+
 test("absolutizeUrl keeps external URLs and anchors useful", () => {
   assert.equal(
     absolutizeUrl("https://example.com/a.png", { issuePath: "docs/issue-1.md" }, "image"),
@@ -68,6 +80,29 @@ test("absolutizeUrl keeps external URLs and anchors useful", () => {
     absolutizeUrl("#tools", { issuePath: "docs/issue-1.md" }, "link"),
     "https://github.com/ruanyf/weekly/blob/master/docs/issue-1.md#tools"
   );
+});
+
+test("stripInvalidXmlChars removes XML 1.0 illegal characters", () => {
+  assert.equal(stripInvalidXmlChars("a\u0000b\u0008c"), "abc");
+});
+
+test("buildRss strips invalid XML characters from CDATA content", () => {
+  const rss = buildRss({
+    feedUrl: "https://weekly-rss.pages.dev/rss.xml",
+    generatedAt: new Date("2026-06-01T00:00:00Z"),
+    items: [
+      {
+        title: "坏字符测试",
+        url: "https://github.com/ruanyf/weekly/blob/master/docs/issue-1.md",
+        pubDate: new Date("2026-06-01T00:00:00Z"),
+        summary: "a\u0000b",
+        html: "<p>a\u0000b</p>"
+      }
+    ]
+  });
+
+  assert.doesNotMatch(rss, /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/);
+  assert.match(rss, /ab/);
 });
 
 test("generateSite writes a full RSS archive and landing page", async () => {
