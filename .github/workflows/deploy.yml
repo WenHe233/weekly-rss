@@ -11,11 +11,13 @@ permissions:
 
 concurrency:
   group: cloudflare-pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    outputs:
+      sync_snapshot: ${{ steps.sync.outputs.snapshot }}
 
     steps:
       - name: Checkout this repository
@@ -46,6 +48,10 @@ jobs:
           FEED_URL: ${{ vars.FEED_URL || 'https://weekly-rss.pages.dev/rss.xml' }}
         run: npm run build -- --source-dir .upstream/weekly --output-dir public --feed-url "$FEED_URL"
 
+      - name: Prepare sync record
+        id: sync
+        run: node scripts/sync-state.mjs snapshot
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
@@ -53,3 +59,28 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy public --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'weekly-rss' }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  record-sync:
+    needs: build-and-deploy
+    if: ${{ needs['build-and-deploy'].result == 'success' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Record successful sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYNC_BRANCH: ${{ github.event.repository.default_branch }}
+          SYNC_SNAPSHOT: ${{ needs['build-and-deploy'].outputs.sync_snapshot }}
+        run: node scripts/sync-state.mjs publish
