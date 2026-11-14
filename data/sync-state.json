@@ -1,8 +1,8 @@
 {
-  "rssSha256": "ddf570e544d5c6b64efe1ecf4007917781bd4f8930d6d1f5d313dfc22118403e",
-  "upstreamCommit": "d09cdac3791bd6da36f7fe71d31949d3a051322d",
+  "rssSha256": "046229eb8971cab64006d0238b0ce495a395386ff82cc9fc38f9dc989ae8aadf",
+  "upstreamCommit": "36caf847da5a8bc6cf402b03f767b2edc8abcfa1",
   "latestIssue": 419,
   "issueCount": 419,
-  "syncedAt": "2026-11-13T19:57:09.703Z",
-  "runUrl": "https://github.com/WenHe233/weekly-rss/actions/runs/43496872320"
+  "syncedAt": "2026-11-14T18:24:40.409Z",
+  "runUrl": "https://github.com/WenHe233/weekly-rss/actions/runs/43626370814"
 }
